@@ -271,20 +271,18 @@ class VideoDetailHeaderAdapter(
 
             val safeCover = coverUrl?.trim().takeIf { !it.isNullOrBlank() }
             binding.ivCoverPoster.isVisible = usePosterCover
+            binding.ivCover.alpha = 1f
             if (safeCover != null) {
                 if (usePosterCover) {
-                    binding.ivCover.alpha = 0.3f
-                    binding.ivCover.isVisible = true
-                    ImageLoader.loadInto(binding.ivCover, ImageUrl.poster(safeCover))
+                    binding.ivCover.setImageDrawable(null)
                     ImageLoader.loadInto(binding.ivCoverPoster, ImageUrl.poster(safeCover))
                 } else {
-                    binding.ivCover.alpha = 1f
-                    binding.ivCover.isVisible = true
+                    binding.ivCoverPoster.setImageDrawable(null)
                     ImageLoader.loadInto(binding.ivCover, ImageUrl.cover(safeCover))
                 }
             } else {
-                binding.ivCover.alpha = 1f
-                binding.ivCover.isVisible = true
+                binding.ivCover.setImageDrawable(null)
+                binding.ivCoverPoster.setImageDrawable(null)
             }
 
             val safeUpName = upName?.trim().takeIf { !it.isNullOrBlank() }
