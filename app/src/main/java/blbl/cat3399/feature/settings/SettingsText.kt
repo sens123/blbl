@@ -60,6 +60,13 @@ object SettingsText {
             else -> "推荐"
         }
 
+    fun mainBackFocusSchemeText(prefValue: String): String =
+        when (prefValue) {
+            blbl.cat3399.core.prefs.AppPrefs.MAIN_BACK_FOCUS_SCHEME_B -> "回到Tab0内容区"
+            blbl.cat3399.core.prefs.AppPrefs.MAIN_BACK_FOCUS_SCHEME_C -> "回到侧边栏"
+            else -> "回到当前所属Tab"
+        }
+
     fun themePresetText(prefValue: String): String =
         when (prefValue) {
             blbl.cat3399.core.prefs.AppPrefs.THEME_PRESET_TV_PINK -> "小电视粉"

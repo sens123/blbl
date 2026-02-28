@@ -25,6 +25,7 @@ enum class SettingId(
     UiScaleFactor("ui_scale_factor"),
     FullscreenEnabled("fullscreen_enabled"),
     TabSwitchFollowsFocus("tab_switch_follows_focus"),
+    MainBackFocusScheme("main_back_focus_scheme"),
 
     // 播放设置
     PlayerPreferredQn("player_preferred_qn"),

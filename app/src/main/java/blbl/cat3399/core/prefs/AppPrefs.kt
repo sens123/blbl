@@ -314,6 +314,47 @@ class AppPrefs(context: Context) {
         get() = prefs.getBoolean(KEY_TAB_SWITCH_FOLLOWS_FOCUS, true)
         set(value) = prefs.edit().putBoolean(KEY_TAB_SWITCH_FOLLOWS_FOCUS, value).apply()
 
+    /**
+     * Main page (Home/Category/Live/My) "Back" key focus-return scheme.
+     *
+     * Applied when focus is inside a page content area:
+     * - Tab pages: focus is inside the ViewPager content.
+     * - Dynamic page: focus is inside the page root (no tabs).
+     *
+     * Schemes:
+     * - [MAIN_BACK_FOCUS_SCHEME_A] (Default): content -> focus current tab; tab -> focus sidebar.
+     * - [MAIN_BACK_FOCUS_SCHEME_B]: content -> go to tab0 content; when already at tab0 content -> focus sidebar.
+     * - [MAIN_BACK_FOCUS_SCHEME_C]: content -> focus sidebar.
+     *
+     * Notes:
+     * - Search has its own back behavior (input/results panels).
+     * - App-level navigation (return to startup page / exit) is still handled by MainActivity when unconsumed.
+     */
+    var mainBackFocusScheme: String
+        get() {
+            val raw = prefs.getString(KEY_MAIN_BACK_FOCUS_SCHEME, MAIN_BACK_FOCUS_SCHEME_A) ?: MAIN_BACK_FOCUS_SCHEME_A
+            val v = raw.trim()
+            return when (v) {
+                MAIN_BACK_FOCUS_SCHEME_A,
+                MAIN_BACK_FOCUS_SCHEME_B,
+                MAIN_BACK_FOCUS_SCHEME_C,
+                -> v
+                else -> MAIN_BACK_FOCUS_SCHEME_A
+            }
+        }
+        set(value) {
+            val v = value.trim()
+            val normalized =
+                when (v) {
+                    MAIN_BACK_FOCUS_SCHEME_A,
+                    MAIN_BACK_FOCUS_SCHEME_B,
+                    MAIN_BACK_FOCUS_SCHEME_C,
+                    -> v
+                    else -> MAIN_BACK_FOCUS_SCHEME_A
+                }
+            prefs.edit().putString(KEY_MAIN_BACK_FOCUS_SCHEME, normalized).apply()
+        }
+
     var playerDebugEnabled: Boolean
         get() = prefs.getBoolean(KEY_PLAYER_DEBUG, false)
         set(value) = prefs.edit().putBoolean(KEY_PLAYER_DEBUG, value).apply()
@@ -535,6 +576,11 @@ class AppPrefs(context: Context) {
         const val THEME_PRESET_DEFAULT = "default"
         const val THEME_PRESET_TV_PINK = "tv_pink"
 
+        // Main page back focus schemes for "Settings -> Page Settings".
+        const val MAIN_BACK_FOCUS_SCHEME_A = "A"
+        const val MAIN_BACK_FOCUS_SCHEME_B = "B"
+        const val MAIN_BACK_FOCUS_SCHEME_C = "C"
+
         private const val KEY_DISCLAIMER_ACCEPTED = "disclaimer_accepted"
         private const val KEY_WEB_REFRESH_TOKEN = "web_refresh_token"
         private const val KEY_WEB_COOKIE_REFRESH_CHECKED_EPOCH_DAY = "web_cookie_refresh_checked_epoch_day"
@@ -582,6 +628,7 @@ class AppPrefs(context: Context) {
         private const val KEY_PLAYER_OPEN_DETAIL_BEFORE_PLAY = "player_open_detail_before_play"
         private const val KEY_FULLSCREEN = "fullscreen_enabled"
         private const val KEY_TAB_SWITCH_FOLLOWS_FOCUS = "tab_switch_follows_focus"
+        private const val KEY_MAIN_BACK_FOCUS_SCHEME = "main_back_focus_scheme"
         private const val KEY_PLAYER_DEBUG = "player_debug_enabled"
         private const val KEY_PLAYER_DOUBLE_BACK_TO_EXIT = "player_double_back_on_ended"
         private const val KEY_PLAYER_DOWN_KEY_OSD_FOCUS_TARGET = "player_down_key_osd_focus_target"

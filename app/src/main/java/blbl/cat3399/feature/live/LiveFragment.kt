@@ -13,11 +13,14 @@ import blbl.cat3399.core.api.BiliApi
 import blbl.cat3399.core.log.AppLog
 import blbl.cat3399.core.model.LiveAreaParent
 import blbl.cat3399.core.net.BiliClient
+import blbl.cat3399.core.prefs.AppPrefs
 import blbl.cat3399.core.ui.enableDpadTabFocus
+import blbl.cat3399.core.ui.postDelayedIfAlive
 import blbl.cat3399.core.ui.postIfAlive
 import blbl.cat3399.databinding.FragmentLiveBinding
 import blbl.cat3399.ui.BackPressHandler
 import blbl.cat3399.ui.RefreshKeyHandler
+import blbl.cat3399.ui.SidebarFocusHost
 import com.google.android.material.tabs.TabLayout
 import com.google.android.material.tabs.TabLayoutMediator
 import androidx.fragment.app.FragmentManager
@@ -31,6 +34,9 @@ class LiveFragment : Fragment(), LiveGridTabSwitchFocusHost, BackPressHandler, L
     private var mediator: TabLayoutMediator? = null
     private var pageCallback: androidx.viewpager2.widget.ViewPager2.OnPageChangeCallback? = null
     private var pendingFocusFirstCardFromContentSwitch: Boolean = false
+    private var pendingFocusFirstCardFromBackToTab0: Boolean = false
+    private var pendingBackToTab0RequestToken: Int = 0
+    private var pendingBackToTab0AttemptsLeft: Int = 0
     private var pendingRestoreFocusAfterDetailReturn: Boolean = false
 
     private var loadAreasJob: Job? = null
@@ -194,7 +200,9 @@ class LiveFragment : Fragment(), LiveGridTabSwitchFocusHost, BackPressHandler, L
                 override fun onPageSelected(position: Int) {
                     val tab = list.getOrNull(position)
                     AppLog.d("Live", "page selected pos=$position title=${tab?.title} t=${SystemClock.uptimeMillis()}")
-                    if (pendingFocusFirstCardFromContentSwitch) {
+                    if (pendingFocusFirstCardFromBackToTab0) {
+                        maybeRequestTab0FocusFromBackToTab0()
+                    } else if (pendingFocusFirstCardFromContentSwitch) {
                         if (focusCurrentPageFirstCardFromContentSwitch()) {
                             pendingFocusFirstCardFromContentSwitch = false
                         }
@@ -229,6 +237,47 @@ class LiveFragment : Fragment(), LiveGridTabSwitchFocusHost, BackPressHandler, L
         return pageFragment.requestFocusFirstCardFromContentSwitch()
     }
 
+    private fun maybeRequestTab0FocusFromBackToTab0(): Boolean {
+        val b = _binding ?: return false
+        if (!pendingFocusFirstCardFromBackToTab0) return false
+        // "Back -> tab0 content" is only meaningful when tab0 is selected.
+        if (b.viewPager.currentItem != 0) return false
+
+        val pagerAdapter = b.viewPager.adapter as? FragmentStateAdapter ?: return false
+        val itemId = pagerAdapter.getItemId(0)
+        val byTag = childFragmentManager.findFragmentByTag("f$itemId")
+        val tab0 = byTag as? LivePageFocusTarget
+        if (tab0 != null) {
+            tab0.requestFocusFirstCardFromBackToTab0()
+            pendingFocusFirstCardFromBackToTab0 = false
+            pendingBackToTab0AttemptsLeft = 0
+            return true
+        }
+
+        // Page fragment not ready yet: retry for a few frames.
+        if (pendingBackToTab0AttemptsLeft <= 0) return false
+        val token = pendingBackToTab0RequestToken
+        pendingBackToTab0AttemptsLeft--
+        b.viewPager.postDelayedIfAlive(
+            delayMillis = 16L,
+            isAlive = { _binding === b && pendingFocusFirstCardFromBackToTab0 && pendingBackToTab0RequestToken == token },
+        ) {
+            maybeRequestTab0FocusFromBackToTab0()
+        }
+        return true
+    }
+
+    private fun focusSelectedTab(): Boolean {
+        val b = _binding ?: return false
+        val tabStrip = b.tabLayout.getChildAt(0) as? ViewGroup ?: return false
+        val pos = b.tabLayout.selectedTabPosition.takeIf { it >= 0 } ?: b.viewPager.currentItem
+        if (pos < 0 || pos >= tabStrip.childCount) return false
+        b.tabLayout.postIfAlive(isAlive = { _binding != null }) {
+            tabStrip.getChildAt(pos)?.requestFocus()
+        }
+        return true
+    }
+
     override fun requestFocusCurrentPageFirstCardFromContentSwitch(): Boolean {
         pendingFocusFirstCardFromContentSwitch = true
         if (focusCurrentPageFirstCardFromContentSwitch()) {
@@ -244,10 +293,38 @@ class LiveFragment : Fragment(), LiveGridTabSwitchFocusHost, BackPressHandler, L
             return true
         }
         val b = _binding ?: return false
-        if (b.viewPager.currentItem == 0) return false
-        pendingFocusFirstCardFromContentSwitch = true
-        b.viewPager.setCurrentItem(0, true)
-        return true
+        val scheme = BiliClient.prefs.mainBackFocusScheme
+
+        // Tab strip is a navigation layer: Back should always return to the left sidebar.
+        if (b.tabLayout.hasFocus()) {
+            return (activity as? SidebarFocusHost)?.requestFocusSidebarSelectedNav() == true
+        }
+
+        // Only handle the Back key when focus is inside the page content area.
+        val inContent = b.viewPager.hasFocus() && !b.tabLayout.hasFocus()
+        if (!inContent) return false
+
+        return when (scheme) {
+            AppPrefs.MAIN_BACK_FOCUS_SCHEME_A -> focusSelectedTab()
+            AppPrefs.MAIN_BACK_FOCUS_SCHEME_B -> {
+                if (b.viewPager.currentItem != 0) {
+                    pendingFocusFirstCardFromBackToTab0 = true
+                    pendingFocusFirstCardFromContentSwitch = false
+                    pendingBackToTab0RequestToken++
+                    pendingBackToTab0AttemptsLeft = 30
+                    // Use non-smooth switch: smooth scrolling may trigger intermediate onPageSelected callbacks
+                    // and consume the pending focus restore on the wrong page.
+                    b.viewPager.setCurrentItem(0, false)
+                    true
+                } else {
+                    (activity as? SidebarFocusHost)?.requestFocusSidebarSelectedNav() == true
+                }
+            }
+            AppPrefs.MAIN_BACK_FOCUS_SCHEME_C -> {
+                (activity as? SidebarFocusHost)?.requestFocusSidebarSelectedNav() == true
+            }
+            else -> focusSelectedTab()
+        }
     }
 
     override fun onDestroyView() {

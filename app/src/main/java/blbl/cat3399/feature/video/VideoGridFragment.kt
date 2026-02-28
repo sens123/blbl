@@ -23,6 +23,7 @@ import blbl.cat3399.core.ui.GridSpanPolicy
 import blbl.cat3399.core.ui.TabSwitchFocusTarget
 import blbl.cat3399.core.ui.postIfAlive
 import blbl.cat3399.core.ui.postIfAttached
+import blbl.cat3399.core.ui.requestFocusAdapterPositionReliable
 import blbl.cat3399.databinding.FragmentVideoGridBinding
 import blbl.cat3399.feature.following.openUpDetailFromVideoCard
 import blbl.cat3399.feature.player.PlayerPlaylistItem
@@ -54,6 +55,7 @@ class VideoGridFragment : Fragment(), RefreshKeyHandler, TabSwitchFocusTarget {
 
     private var pendingFocusFirstCardFromTab: Boolean = false
     private var pendingFocusFirstCardFromContentSwitch: Boolean = false
+    private var pendingFocusFirstCardFromBackToTab0: Boolean = false
     private var lastFocusedAdapterPosition: Int? = null
     private var dpadGridController: DpadGridController? = null
 
@@ -327,6 +329,7 @@ class VideoGridFragment : Fragment(), RefreshKeyHandler, TabSwitchFocusTarget {
     override fun requestFocusFirstCardFromTab(): Boolean {
         pendingFocusFirstCardFromTab = true
         pendingFocusFirstCardFromContentSwitch = false
+        pendingFocusFirstCardFromBackToTab0 = false
         if (!isResumed) return true
         return maybeConsumePendingFocusFirstCard()
     }
@@ -334,20 +337,41 @@ class VideoGridFragment : Fragment(), RefreshKeyHandler, TabSwitchFocusTarget {
     override fun requestFocusFirstCardFromContentSwitch(): Boolean {
         pendingFocusFirstCardFromContentSwitch = true
         pendingFocusFirstCardFromTab = false
+        pendingFocusFirstCardFromBackToTab0 = false
+        if (!isResumed) return true
+        return maybeConsumePendingFocusFirstCard()
+    }
+
+    override fun requestFocusFirstCardFromBackToTab0(): Boolean {
+        pendingFocusFirstCardFromBackToTab0 = true
+        pendingFocusFirstCardFromTab = false
+        pendingFocusFirstCardFromContentSwitch = false
         if (!isResumed) return true
         return maybeConsumePendingFocusFirstCard()
     }
 
     private fun maybeConsumePendingFocusFirstCard(): Boolean {
-        if (!pendingFocusFirstCardFromTab && !pendingFocusFirstCardFromContentSwitch) return false
+        if (!pendingFocusFirstCardFromTab && !pendingFocusFirstCardFromContentSwitch && !pendingFocusFirstCardFromBackToTab0) return false
         if (!isAdded || _binding == null) return false
         if (!isResumed) return false
 
         val focused = activity?.currentFocus
         if (focused != null && focused != binding.recycler && FocusTreeUtils.isDescendantOf(focused, binding.recycler)) {
-            rememberFocusedAdapterPositionFromView(focused)
-            clearPendingFocusFlags()
-            return false
+            // If we are already focused inside the grid, consider the request satisfied, except for
+            // "Back -> tab0 content" which must deterministically land on the first card.
+            val holder = binding.recycler.findContainingViewHolder(focused)
+            val pos = holder?.bindingAdapterPosition?.takeIf { it != RecyclerView.NO_POSITION }
+            if (pendingFocusFirstCardFromBackToTab0) {
+                if (pos == 0) {
+                    lastFocusedAdapterPosition = 0
+                    clearPendingFocusFlags()
+                    return false
+                }
+            } else {
+                rememberFocusedAdapterPositionFromView(focused)
+                clearPendingFocusFlags()
+                return false
+            }
         }
 
         val parentView = parentFragment?.view
@@ -369,26 +393,20 @@ class VideoGridFragment : Fragment(), RefreshKeyHandler, TabSwitchFocusTarget {
         val b = _binding ?: return false
         val recycler = b.recycler
         val isUiAlive = { _binding === b && isResumed }
-        recycler.postIfAlive(isAlive = isUiAlive) {
-            val vh = recycler.findViewHolderForAdapterPosition(targetPosition)
-            if (vh != null) {
-                vh.itemView.requestFocus()
+        recycler.requestFocusAdapterPositionReliable(
+            position = targetPosition,
+            smoothScroll = false,
+            isAlive = isUiAlive,
+            onFocused = {
                 lastFocusedAdapterPosition = targetPosition
                 clearPendingFocusFlags()
-                return@postIfAlive
-            }
-            recycler.scrollToPosition(targetPosition)
-            recycler.postIfAlive(isAlive = isUiAlive) {
-                recycler.findViewHolderForAdapterPosition(targetPosition)?.itemView?.requestFocus()
-                lastFocusedAdapterPosition = targetPosition
-                clearPendingFocusFlags()
-            }
-        }
+            },
+        )
         return true
     }
 
     private fun resolvePendingFocusTarget(itemCount: Int): Int {
-        if (pendingFocusFirstCardFromTab) return 0
+        if (pendingFocusFirstCardFromTab || pendingFocusFirstCardFromBackToTab0) return 0
         if (!pendingFocusFirstCardFromContentSwitch) return 0
         val saved = lastFocusedAdapterPosition ?: return 0
         return saved.coerceIn(0, itemCount - 1)
@@ -397,6 +415,7 @@ class VideoGridFragment : Fragment(), RefreshKeyHandler, TabSwitchFocusTarget {
     private fun clearPendingFocusFlags() {
         pendingFocusFirstCardFromTab = false
         pendingFocusFirstCardFromContentSwitch = false
+        pendingFocusFirstCardFromBackToTab0 = false
     }
 
     private fun captureCurrentFocusedAdapterPosition() {

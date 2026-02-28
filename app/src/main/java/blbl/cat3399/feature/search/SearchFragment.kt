@@ -9,10 +9,12 @@ import androidx.fragment.app.Fragment
 import blbl.cat3399.R
 import blbl.cat3399.core.log.AppLog
 import blbl.cat3399.core.model.BangumiSeason
+import blbl.cat3399.core.ui.FocusTreeUtils
 import blbl.cat3399.databinding.FragmentSearchBinding
 import blbl.cat3399.feature.my.BangumiDetailActivity
 import blbl.cat3399.ui.BackPressHandler
 import blbl.cat3399.ui.RefreshKeyHandler
+import blbl.cat3399.ui.SidebarFocusHost
 
 class SearchFragment : Fragment(), BackPressHandler, RefreshKeyHandler {
     private var _binding: FragmentSearchBinding? = null
@@ -52,11 +54,17 @@ class SearchFragment : Fragment(), BackPressHandler, RefreshKeyHandler {
         val b = _binding ?: return false
         val r = renderer ?: return false
         val resultsVisible = b.panelResults.visibility == View.VISIBLE
+        val focused = activity?.currentFocus
+        if (focused == null || !FocusTreeUtils.isDescendantOf(focused, b.root)) return false
         AppLog.d("Back", "SearchFragment handleBackPressed resultsVisible=$resultsVisible")
-        if (!resultsVisible) return false
-        r.showInput()
-        r.focusFirstKey()
-        return true
+        return if (resultsVisible) {
+            r.showInput()
+            r.focusFirstKey()
+            true
+        } else {
+            // Search (input panel) behaves like Dynamic: Back in page content returns to the sidebar.
+            (activity as? SidebarFocusHost)?.requestFocusSidebarSelectedNav() == true
+        }
     }
 
     override fun onResume() {

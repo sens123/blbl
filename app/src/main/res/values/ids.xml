@@ -6,6 +6,7 @@
     <item name="tag_app_toast_view" type="id" />
     <item name="tag_app_toast_hide_runnable" type="id" />
     <item name="tag_popup_host" type="id" />
+    <item name="tag_recycler_focus_request_token" type="id" />
     <item name="tag_player_list_panel_base_metrics" type="id" />
     <item name="tag_player_side_panels_base_metrics" type="id" />
     <item name="tag_user_scale_tab_custom_view" type="id" />

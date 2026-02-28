@@ -51,7 +51,7 @@ import org.json.JSONObject
 import java.lang.ref.WeakReference
 import java.util.Locale
 
-class MainActivity : BaseActivity() {
+class MainActivity : BaseActivity(), SidebarFocusHost {
     private lateinit var binding: ActivityMainBinding
     private lateinit var navAdapter: SidebarNavAdapter
     private var needForceInitialSidebarFocus: Boolean = false
@@ -139,6 +139,14 @@ class MainActivity : BaseActivity() {
                         return
                     }
                     if (supportFragmentManager.popBackStackImmediate()) {
+                        return
+                    }
+                    // Sidebar is the primary navigation layer on TV.
+                    // When focus is already in sidebar, Back should enter the app-level exit flow
+                    // (double press to exit) instead of jumping back to the startup page.
+                    val focused = currentFocus
+                    if (focused != null && isInSidebar(focused)) {
+                        if (shouldFinishOnBackPress()) finish()
                         return
                     }
                     val current = supportFragmentManager.findFragmentById(R.id.main_container)
@@ -622,6 +630,10 @@ class MainActivity : BaseActivity() {
     private fun focusSidebarSelectedNav(): Boolean {
         val pos = navAdapter.selectedAdapterPosition().takeIf { it >= 0 } ?: 0
         return focusSidebarNavAt(pos)
+    }
+
+    override fun requestFocusSidebarSelectedNav(): Boolean {
+        return focusSidebarSelectedNav()
     }
 
     private fun focusSidebarNavAt(position: Int): Boolean {

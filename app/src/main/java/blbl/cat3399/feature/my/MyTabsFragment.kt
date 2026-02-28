@@ -12,12 +12,14 @@ import androidx.viewpager2.adapter.FragmentStateAdapter
 import blbl.cat3399.R
 import blbl.cat3399.core.log.AppLog
 import blbl.cat3399.core.net.BiliClient
+import blbl.cat3399.core.prefs.AppPrefs
 import blbl.cat3399.core.ui.enableDpadTabFocus
 import blbl.cat3399.core.ui.postIfAlive
 import blbl.cat3399.databinding.FragmentMyTabsBinding
 import blbl.cat3399.ui.BackPressHandler
 import com.google.android.material.tabs.TabLayoutMediator
 import blbl.cat3399.ui.RefreshKeyHandler
+import blbl.cat3399.ui.SidebarFocusHost
 import com.google.android.material.tabs.TabLayout
 
 class MyTabsFragment : Fragment(), MyTabContentSwitchFocusHost, BackPressHandler {
@@ -154,6 +156,17 @@ class MyTabsFragment : Fragment(), MyTabContentSwitchFocusHost, BackPressHandler
         return target.requestFocusFirstItemFromTabSwitch()
     }
 
+    private fun focusSelectedTab(): Boolean {
+        val b = _binding ?: return false
+        val tabStrip = b.tabLayout.getChildAt(0) as? ViewGroup ?: return false
+        val pos = b.tabLayout.selectedTabPosition.takeIf { it >= 0 } ?: b.viewPager.currentItem
+        if (pos < 0 || pos >= tabStrip.childCount) return false
+        b.tabLayout.postIfAlive(isAlive = { _binding != null }) {
+            tabStrip.getChildAt(pos)?.requestFocus()
+        }
+        return true
+    }
+
     override fun requestFocusCurrentPageFirstItemFromContentSwitch(): Boolean {
         pendingFocusFirstItemFromContentSwitch = true
         if (focusCurrentPageFirstItemFromContentSwitch()) {
@@ -164,10 +177,35 @@ class MyTabsFragment : Fragment(), MyTabContentSwitchFocusHost, BackPressHandler
 
     override fun handleBackPressed(): Boolean {
         val b = _binding ?: return false
-        if (b.viewPager.currentItem == 0) return false
-        pendingFocusFirstItemFromContentSwitch = true
-        b.viewPager.setCurrentItem(0, true)
-        return true
+        val scheme = BiliClient.prefs.mainBackFocusScheme
+
+        // Tab strip is a navigation layer: Back should always return to the left sidebar.
+        if (b.tabLayout.hasFocus()) {
+            return (activity as? SidebarFocusHost)?.requestFocusSidebarSelectedNav() == true
+        }
+
+        // Only handle the Back key when focus is inside the page content area.
+        val inContent = b.viewPager.hasFocus() && !b.tabLayout.hasFocus()
+        if (!inContent) return false
+
+        return when (scheme) {
+            AppPrefs.MAIN_BACK_FOCUS_SCHEME_A -> focusSelectedTab()
+            AppPrefs.MAIN_BACK_FOCUS_SCHEME_B -> {
+                if (b.viewPager.currentItem != 0) {
+                    pendingFocusFirstItemFromContentSwitch = true
+                    // Use non-smooth switch: smooth scrolling may trigger intermediate onPageSelected callbacks
+                    // and consume the pending focus restore on the wrong page.
+                    b.viewPager.setCurrentItem(0, false)
+                    true
+                } else {
+                    (activity as? SidebarFocusHost)?.requestFocusSidebarSelectedNav() == true
+                }
+            }
+            AppPrefs.MAIN_BACK_FOCUS_SCHEME_C -> {
+                (activity as? SidebarFocusHost)?.requestFocusSidebarSelectedNav() == true
+            }
+            else -> focusSelectedTab()
+        }
     }
 
     override fun onDestroyView() {

@@ -439,6 +439,26 @@ class SettingsInteractionHandler(
                 renderer.refreshSection(entry.id)
             }
 
+            SettingId.MainBackFocusScheme -> {
+                val options =
+                    listOf(
+                        blbl.cat3399.core.prefs.AppPrefs.MAIN_BACK_FOCUS_SCHEME_A to "回到当前所属Tab",
+                        blbl.cat3399.core.prefs.AppPrefs.MAIN_BACK_FOCUS_SCHEME_B to "回到Tab0内容区",
+                        blbl.cat3399.core.prefs.AppPrefs.MAIN_BACK_FOCUS_SCHEME_C to "回到侧边栏",
+                    )
+                showChoiceDialog(
+                    title = "返回键焦点策略",
+                    items = options.map { it.second },
+                    current = SettingsText.mainBackFocusSchemeText(prefs.mainBackFocusScheme),
+                ) { selected ->
+                    val key = options.firstOrNull { it.second == selected }?.first
+                        ?: blbl.cat3399.core.prefs.AppPrefs.MAIN_BACK_FOCUS_SCHEME_A
+                    prefs.mainBackFocusScheme = key
+                    AppToast.show(activity, "返回键焦点策略：$selected")
+                    renderer.refreshSection(entry.id)
+                }
+            }
+
             SettingId.StartupPage -> {
                 val options =
                     listOf(

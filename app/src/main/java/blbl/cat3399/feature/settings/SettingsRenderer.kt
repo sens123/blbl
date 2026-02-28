@@ -178,6 +178,12 @@ class SettingsRenderer(
                     SettingEntry(SettingId.UiScaleFactor, "界面大小", SettingsText.uiScaleFactorText(prefs.uiScaleFactor), null),
                     SettingEntry(SettingId.FullscreenEnabled, "以全屏模式运行", if (prefs.fullscreenEnabled) "开" else "关", null),
                     SettingEntry(SettingId.TabSwitchFollowsFocus, "tab跟随焦点切换", if (prefs.tabSwitchFollowsFocus) "开" else "关", null),
+                    SettingEntry(
+                        SettingId.MainBackFocusScheme,
+                        "返回键焦点策略",
+                        SettingsText.mainBackFocusSchemeText(prefs.mainBackFocusScheme),
+                        "主页面内容区按返回键（动态页固定回侧边栏）",
+                    ),
                 )
 
             "播放设置" ->

@@ -16,6 +16,7 @@ import blbl.cat3399.core.log.AppLog
 import blbl.cat3399.core.net.BiliClient
 import blbl.cat3399.core.ui.AppToast
 import blbl.cat3399.core.ui.DpadGridController
+import blbl.cat3399.core.ui.FocusTreeUtils
 import blbl.cat3399.core.ui.GridSpanPolicy
 import blbl.cat3399.core.ui.UiScale
 import blbl.cat3399.core.ui.uiScaler
@@ -29,11 +30,13 @@ import blbl.cat3399.feature.player.PlayerPlaylistItem
 import blbl.cat3399.feature.player.PlayerPlaylistStore
 import blbl.cat3399.feature.video.VideoDetailActivity
 import blbl.cat3399.feature.video.VideoCardAdapter
+import blbl.cat3399.ui.BackPressHandler
 import blbl.cat3399.ui.RefreshKeyHandler
+import blbl.cat3399.ui.SidebarFocusHost
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
-class DynamicFragment : Fragment(), RefreshKeyHandler {
+class DynamicFragment : Fragment(), RefreshKeyHandler, BackPressHandler {
     private var _bindingLogin: FragmentDynamicLoginBinding? = null
     private var _binding: FragmentDynamicBinding? = null
 
@@ -474,6 +477,14 @@ class DynamicFragment : Fragment(), RefreshKeyHandler {
             val desired = spanCountForWidth()
             if (lm.spanCount != desired) lm.spanCount = desired
         }
+    }
+
+    override fun handleBackPressed(): Boolean {
+        // Dynamic page has no tabs: Back in content should go to sidebar (focus-based navigation).
+        val root = _binding?.root ?: _bindingLogin?.root ?: return false
+        val focused = activity?.currentFocus ?: return false
+        if (!FocusTreeUtils.isDescendantOf(focused, root)) return false
+        return (activity as? SidebarFocusHost)?.requestFocusSidebarSelectedNav() == true
     }
 
     override fun handleRefreshKey(): Boolean {
